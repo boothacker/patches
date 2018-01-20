@@ -1,0 +1,66 @@
+From 7a055304ca0e424fc48eaad6d03f52bbab25bc88 Mon Sep 17 00:00:00 2001
+From: Maksim Lebid <33498219+boothacker@users.noreply.github.com>
+Date: Sat, 20 Jan 2018 22:35:08 +0200
+Subject: [PATCH] for patch
+
+---
+ src/gpu/gl/android/GrGLCreateNativeInterface_android.cpp | 15 +--------------
+ src/opts/SkBlitRow_opts_arm.cpp                          | 13 ++-----------
+ 2 files changed, 3 insertions(+), 25 deletions(-)
+
+diff --git a/src/gpu/gl/android/GrGLCreateNativeInterface_android.cpp b/src/gpu/gl/android/GrGLCreateNativeInterface_android.cpp
+index 781e29b..254c384 100644
+--- a/src/gpu/gl/android/GrGLCreateNativeInterface_android.cpp
++++ b/src/gpu/gl/android/GrGLCreateNativeInterface_android.cpp
+@@ -194,22 +194,9 @@ static GrGLInterface* create_es_interface(GrGLVersion version,
+ 
+ #endif
+ 
+-    if (version >= GR_GL_VER(3,0)) {
+-#if GL_ES_VERSION_3_0
+-        functions->fMapBufferRange = glMapBufferRange;
+-        functions->fFlushMappedBufferRange = glFlushMappedBufferRange;
+-#else
++    if (version >= GR_GL_VER(3,0) || extensions->has("GL_EXT_map_buffer_range")) {
+         functions->fMapBufferRange = (GrGLMapBufferRangeProc) eglGetProcAddress("glMapBufferRange");
+         functions->fFlushMappedBufferRange = (GrGLFlushMappedBufferRangeProc) eglGetProcAddress("glFlushMappedBufferRange");
+-#endif
+-    } else if (extensions->has("GL_EXT_map_buffer_range")) {
+-#if GL_EXT_map_buffer_range
+-        functions->fMapBufferRange = glMapBufferRangeEXT;
+-        functions->fFlushMappedBufferRange = glFlushMappedBufferRangeEXT;
+-#else
+-        functions->fMapBufferRange = (GrGLMapBufferRangeProc) eglGetProcAddress("glMapBufferRangeEXT");
+-        functions->fFlushMappedBufferRange = (GrGLFlushMappedBufferRangeProc) eglGetProcAddress("glFlushMappedBufferRangeEXT");
+-#endif
+     }
+ 
+     if (extensions->has("GL_EXT_debug_marker")) {
+diff --git a/src/opts/SkBlitRow_opts_arm.cpp b/src/opts/SkBlitRow_opts_arm.cpp
+index 98ba069..4832100 100644
+--- a/src/opts/SkBlitRow_opts_arm.cpp
++++ b/src/opts/SkBlitRow_opts_arm.cpp
+@@ -22,20 +22,11 @@ extern SkBlitRow::Proc32 skia_androidopt_PlatformProcs32(unsigned flags) __attri
+ extern SkBlitRow::Proc skia_androidopt_PlatformProcs565(unsigned flags) __attribute__((weak));
+ 
+ SkBlitRow::Proc SkBlitRow::PlatformProcs565(unsigned flags) {
+-    if (skia_androidopt_PlatformProcs565 && skia_androidopt_PlatformProcs565(flags) ) {
+-        return  skia_androidopt_PlatformProcs565(flags);
+-    } else {
+-        return SK_ARM_NEON_WRAP(sk_blitrow_platform_565_procs_arm)[flags];
+-    }
++    return SK_ARM_NEON_WRAP(sk_blitrow_platform_565_procs_arm)[flags];
+ }
+ 
+-
+ SkBlitRow::Proc32 SkBlitRow::PlatformProcs32(unsigned flags) {
+-    if (skia_androidopt_PlatformProcs32 && skia_androidopt_PlatformProcs32(flags) ) {
+-        return  skia_androidopt_PlatformProcs32(flags);
+-    } else {
+-        return SK_ARM_NEON_WRAP(sk_blitrow_platform_32_procs_arm)[flags];
+-    }
++    return SK_ARM_NEON_WRAP(sk_blitrow_platform_32_procs_arm)[flags];
+ }
+ 
+ ///////////////////////////////////////////////////////////////////////////////
+ 
