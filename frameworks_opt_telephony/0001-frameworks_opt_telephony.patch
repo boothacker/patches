@@ -1,0 +1,148 @@
+From 2ddf587c10c1434d97c96796a234faf904952bbf Mon Sep 17 00:00:00 2001
+From: Maksim Lebid <33498219+boothacker@users.noreply.github.com>
+Date: Thu, 18 Jan 2018 20:34:13 +0200
+Subject: [PATCH] add mtk stuffs... @blackrebel
+
+---
+ .../com/android/internal/telephony/SubscriptionController.java | 10 +++++++---
+ .../android/internal/telephony/SubscriptionInfoUpdater.java    |  2 +-
+ src/java/com/android/internal/telephony/gsm/GSMPhone.java      |  7 ++++++-
+ src/java/com/android/internal/telephony/uicc/IccConstants.java |  3 +++
+ .../com/android/internal/telephony/uicc/IccFileHandler.java    |  4 ++++
+ src/java/com/android/internal/telephony/uicc/RuimRecords.java  | 10 +++++++---
+ src/java/com/android/internal/telephony/uicc/SIMRecords.java   | 10 +++++++---
+ 7 files changed, 35 insertions(+), 11 deletions(-)
+
+diff --git a/src/java/com/android/internal/telephony/SubscriptionController.java b/src/java/com/android/internal/telephony/SubscriptionController.java
+index 4d252de..3f6067b 100644
+--- a/src/java/com/android/internal/telephony/SubscriptionController.java
++++ b/src/java/com/android/internal/telephony/SubscriptionController.java
+@@ -1427,9 +1427,7 @@ private void updateDataSubId(AsyncResult ar) {
+             reqStatus = PhoneConstants.SUCCESS;
+         }
+         mScheduler.updateCurrentDds(null);
+-        broadcastDefaultDataSubIdChanged(subId);
+-
+-        updateAllDataConnectionTrackers();
++        broadcastDefaultDataSubIdChanged(reqStatus);
+     }
+ 
+     public void setDefaultDataSubId(int subId) {
+@@ -1445,6 +1443,12 @@ public void setDefaultDataSubId(int subId) {
+         }
+         mDctController.setDefaultDataSubId(subId);
+ 
++        Settings.Global.putInt(mContext.getContentResolver(),
++                Settings.Global.MULTI_SIM_DATA_CALL_SUBSCRIPTION, subId);
++        broadcastDefaultDataSubIdChanged(subId);
++
++        // FIXME is this still needed?
++        updateAllDataConnectionTrackers();
+     }
+ 
+     private void setDefaultDataSubNetworkType(int subId) {
+diff --git a/src/java/com/android/internal/telephony/SubscriptionInfoUpdater.java b/src/java/com/android/internal/telephony/SubscriptionInfoUpdater.java
+index 95f805e..a806374 100644
+--- a/src/java/com/android/internal/telephony/SubscriptionInfoUpdater.java
++++ b/src/java/com/android/internal/telephony/SubscriptionInfoUpdater.java
+@@ -225,7 +225,7 @@ public void handleMessage(Message msg) {
+                         mIccId[slotId] = ICCID_STRING_FOR_NO_SIM;
+                     }
+                 } else {
+-                    mIccId[slotId] = ICCID_STRING_FOR_NO_SIM;
++                    mIccId[slotId] = mFh[slotId].needsFakeIccid() ? IccConstants.FAKE_ICCID : ICCID_STRING_FOR_NO_SIM;
+                     logd("Query IccId fail: " + ar.exception);
+                 }
+                 logd("mIccId[" + slotId + "] = " + mIccId[slotId]);
+diff --git a/src/java/com/android/internal/telephony/gsm/GSMPhone.java b/src/java/com/android/internal/telephony/gsm/GSMPhone.java
+index 1b8ef2d..b321fc0 100644
+--- a/src/java/com/android/internal/telephony/gsm/GSMPhone.java
++++ b/src/java/com/android/internal/telephony/gsm/GSMPhone.java
+@@ -1531,7 +1531,12 @@ private void updateCallForwardStatus() {
+             // Complete pending USSD
+ 
+             if (isUssdRelease) {
+-                found.onUssdRelease();
++                // MTK weirdness
++                if(ussdMessage != null) {
++                    found.onUssdFinished(ussdMessage, isUssdRequest);
++                } else {
++                    found.onUssdRelease();
++                }
+             } else if (isUssdError) {
+                 found.onUssdFinishedError();
+             } else {
+diff --git a/src/java/com/android/internal/telephony/uicc/IccConstants.java b/src/java/com/android/internal/telephony/uicc/IccConstants.java
+index facc918..8916449 100644
+--- a/src/java/com/android/internal/telephony/uicc/IccConstants.java
++++ b/src/java/com/android/internal/telephony/uicc/IccConstants.java
+@@ -112,4 +112,7 @@
+ 
+     //UICC access
+     static final String DF_ADF = "7FFF";
++
++    //CM-Specific : Fake ICCID
++    static final String FAKE_ICCID = "00000000000001";
+ }
+diff --git a/src/java/com/android/internal/telephony/uicc/IccFileHandler.java b/src/java/com/android/internal/telephony/uicc/IccFileHandler.java
+index 24d948c..1e8c526 100644
+--- a/src/java/com/android/internal/telephony/uicc/IccFileHandler.java
++++ b/src/java/com/android/internal/telephony/uicc/IccFileHandler.java
+@@ -752,6 +752,10 @@ protected String getCommonIccEFPath(int efid) {
+         return null;
+     }
+ 
++    public boolean needsFakeIccid() {
++        return mCi.needsOldRilFeature("fakeiccid");
++    }
++
+     protected abstract String getEFPath(int efid);
+     protected abstract void logd(String s);
+ 
+diff --git a/src/java/com/android/internal/telephony/uicc/RuimRecords.java b/src/java/com/android/internal/telephony/uicc/RuimRecords.java
+index 4d16293..883642b 100644
+--- a/src/java/com/android/internal/telephony/uicc/RuimRecords.java
++++ b/src/java/com/android/internal/telephony/uicc/RuimRecords.java
+@@ -723,11 +723,15 @@ public void handleMessage(Message msg) {
+                 data = (byte[])ar.result;
+ 
+                 if (ar.exception != null) {
+-                    break;
++                    if(mFh.needsFakeIccid()) {
++                        mIccId = FAKE_ICCID;
++                    } else {
++                        break;
++                    }
++                } else {
++                    mIccId = IccUtils.bcdToString(data, 0, data.length);
+                 }
+ 
+-                mIccId = IccUtils.bcdToString(data, 0, data.length);
+-
+                 log("iccid: " + mIccId);
+ 
+             break;
+diff --git a/src/java/com/android/internal/telephony/uicc/SIMRecords.java b/src/java/com/android/internal/telephony/uicc/SIMRecords.java
+index cd65830..df24072 100644
+--- a/src/java/com/android/internal/telephony/uicc/SIMRecords.java
++++ b/src/java/com/android/internal/telephony/uicc/SIMRecords.java
+@@ -876,11 +876,15 @@ public void handleMessage(Message msg) {
+                 data = (byte[])ar.result;
+ 
+                 if (ar.exception != null) {
+-                    break;
++                    if(mFh.needsFakeIccid()) {
++                        mIccId = FAKE_ICCID;
++                    } else {
++                        break;
++                    }
++                } else {
++                    mIccId = IccUtils.bcdToString(data, 0, data.length);
+                 }
+ 
+-                mIccId = IccUtils.bcdToString(data, 0, data.length);
+-
+                 log("iccid: " + mIccId);
+ 
+             break;
+			 

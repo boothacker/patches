@@ -1,0 +1,312 @@
+From bb4708e9247597dfd6e11d13e102a83657dd0046 Mon Sep 17 00:00:00 2001
+From: Maksim Lebid <33498219+boothacker@users.noreply.github.com>
+Date: Thu, 18 Jan 2018 20:50:17 +0200
+Subject: [PATCH] add mtk stuffs... @blackrebel
+
+---
+ .gitignore                                      |  3 ++
+ libc/arch-arm/cortex-a7/cortex-a7.mk            | 10 ++++++-
+ libc/kernel/uapi/linux/netfilter/xt_CONNMARK.h  | 24 ++++++++++++---
+ libc/kernel/uapi/linux/netfilter/xt_DSCP.h      | 17 +++++++----
+ libc/kernel/uapi/linux/netfilter/xt_MARK.h      | 16 +++++++---
+ libc/kernel/uapi/linux/netfilter/xt_RATEEST.h   | 39 ++++++++++++++++++++-----
+ libc/kernel/uapi/linux/netfilter/xt_TCPMSS.h    | 10 +++----
+ libc/kernel/uapi/linux/netfilter_ipv4/ipt_ECN.h | 30 +++++++------------
+ libc/kernel/uapi/linux/netfilter_ipv4/ipt_TTL.h | 12 ++++----
+ libc/kernel/uapi/linux/netfilter_ipv6/ip6t_HL.h | 12 ++++----
+ 10 files changed, 115 insertions(+), 58 deletions(-)
+ create mode 100644 .gitignore
+
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000..5a5ea87
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,3 @@
++*.pyc
++*.*~
++libc/kernel/original
+diff --git a/libc/arch-arm/cortex-a7/cortex-a7.mk b/libc/arch-arm/cortex-a7/cortex-a7.mk
+index 646c8b6..f2dffbf 100644
+--- a/libc/arch-arm/cortex-a7/cortex-a7.mk
++++ b/libc/arch-arm/cortex-a7/cortex-a7.mk
+@@ -3,7 +3,6 @@ libc_bionic_src_files_arm += \
+ 
+ libc_bionic_src_files_arm += \
+     arch-arm/cortex-a15/bionic/memchr.S \
+-    arch-arm/cortex-a15/bionic/memcpy.S \
+     arch-arm/cortex-a15/bionic/strcat.S \
+     arch-arm/cortex-a15/bionic/__strcat_chk.S \
+     arch-arm/cortex-a15/bionic/strcmp.S \
+@@ -16,3 +15,12 @@ libc_bionic_src_files_arm += \
+ 
+ libc_bionic_src_files_arm += \
+     arch-arm/denver/bionic/memmove.S \
++
++# Optimization not required for some targets
++ifeq ($(TARGET_CPU_MEMCPY_OPT_DISABLE),true)
++libc_bionic_src_files_arm += \
++    arch-arm/cortex-a7/bionic/memcpy.S
++else
++libc_bionic_src_files_arm += \
++    arch-arm/cortex-a15/bionic/memcpy.S
++endif
+\ No newline at end of file
+diff --git a/libc/kernel/uapi/linux/netfilter/xt_CONNMARK.h b/libc/kernel/uapi/linux/netfilter/xt_CONNMARK.h
+index 2739b1c..17117ad 100644
+--- a/libc/kernel/uapi/linux/netfilter/xt_CONNMARK.h
++++ b/libc/kernel/uapi/linux/netfilter/xt_CONNMARK.h
+@@ -16,8 +16,24 @@
+  ***
+  ****************************************************************************
+  ****************************************************************************/
+-#ifndef _XT_CONNMARK_H_target
+-#define _XT_CONNMARK_H_target
+-#include <linux/netfilter/xt_connmark.h>
+-#endif
++#ifndef _XT_CONNMARK_H
++#define _XT_CONNMARK_H
++#include <linux/types.h>
++enum {
++/* WARNING: DO NOT EDIT, AUTO-GENERATED CODE - SEE TOP FOR INSTRUCTIONS */
++ XT_CONNMARK_SET = 0,
++ XT_CONNMARK_SAVE,
++ XT_CONNMARK_RESTORE
++};
++/* WARNING: DO NOT EDIT, AUTO-GENERATED CODE - SEE TOP FOR INSTRUCTIONS */
++struct xt_connmark_tginfo1 {
++ __u32 ctmark, ctmask, nfmask;
++ __u8 mode;
++};
+ /* WARNING: DO NOT EDIT, AUTO-GENERATED CODE - SEE TOP FOR INSTRUCTIONS */
++struct xt_connmark_mtinfo1 {
++ __u32 mark, mask;
++ __u8 invert;
++};
++/* WARNING: DO NOT EDIT, AUTO-GENERATED CODE - SEE TOP FOR INSTRUCTIONS */
++#endif
+diff --git a/libc/kernel/uapi/linux/netfilter/xt_DSCP.h b/libc/kernel/uapi/linux/netfilter/xt_DSCP.h
+index c122707..c3e6c1b 100644
+--- a/libc/kernel/uapi/linux/netfilter/xt_DSCP.h
++++ b/libc/kernel/uapi/linux/netfilter/xt_DSCP.h
+@@ -16,18 +16,23 @@
+  ***
+  ****************************************************************************
+  ****************************************************************************/
+-#ifndef _XT_DSCP_TARGET_H
+-#define _XT_DSCP_TARGET_H
+-#include <linux/netfilter/xt_dscp.h>
++#ifndef _XT_DSCP_H
++#define _XT_DSCP_H
+ #include <linux/types.h>
++#define XT_DSCP_MASK 0xfc
+ /* WARNING: DO NOT EDIT, AUTO-GENERATED CODE - SEE TOP FOR INSTRUCTIONS */
+-struct xt_DSCP_info {
++#define XT_DSCP_SHIFT 2
++#define XT_DSCP_MAX 0x3f
++struct xt_dscp_info {
+  __u8 dscp;
++/* WARNING: DO NOT EDIT, AUTO-GENERATED CODE - SEE TOP FOR INSTRUCTIONS */
++ __u8 invert;
+ };
+-struct xt_tos_target_info {
++struct xt_tos_match_info {
++ __u8 tos_mask;
+ /* WARNING: DO NOT EDIT, AUTO-GENERATED CODE - SEE TOP FOR INSTRUCTIONS */
+  __u8 tos_value;
+- __u8 tos_mask;
++ __u8 invert;
+ };
+ #endif
+ /* WARNING: DO NOT EDIT, AUTO-GENERATED CODE - SEE TOP FOR INSTRUCTIONS */
+diff --git a/libc/kernel/uapi/linux/netfilter/xt_MARK.h b/libc/kernel/uapi/linux/netfilter/xt_MARK.h
+index 6afed2d..1cd0ea0 100644
+--- a/libc/kernel/uapi/linux/netfilter/xt_MARK.h
++++ b/libc/kernel/uapi/linux/netfilter/xt_MARK.h
+@@ -16,8 +16,16 @@
+  ***
+  ****************************************************************************
+  ****************************************************************************/
+-#ifndef _XT_MARK_H_target
+-#define _XT_MARK_H_target
+-#include <linux/netfilter/xt_mark.h>
+-#endif
++#ifndef _XT_MARK_H
++#define _XT_MARK_H
++#include <linux/types.h>
++struct xt_mark_tginfo2 {
++/* WARNING: DO NOT EDIT, AUTO-GENERATED CODE - SEE TOP FOR INSTRUCTIONS */
++ __u32 mark, mask;
++};
++struct xt_mark_mtinfo1 {
++ __u32 mark, mask;
+ /* WARNING: DO NOT EDIT, AUTO-GENERATED CODE - SEE TOP FOR INSTRUCTIONS */
++ __u8 invert;
++};
++#endif
+diff --git a/libc/kernel/uapi/linux/netfilter/xt_RATEEST.h b/libc/kernel/uapi/linux/netfilter/xt_RATEEST.h
+index 1997efa..66b06aa 100644
+--- a/libc/kernel/uapi/linux/netfilter/xt_RATEEST.h
++++ b/libc/kernel/uapi/linux/netfilter/xt_RATEEST.h
+@@ -16,15 +16,40 @@
+  ***
+  ****************************************************************************
+  ****************************************************************************/
+-#ifndef _XT_RATEEST_TARGET_H
+-#define _XT_RATEEST_TARGET_H
++#ifndef _XT_RATEEST_MATCH_H
++#define _XT_RATEEST_MATCH_H
+ #include <linux/types.h>
+-struct xt_rateest_target_info {
++enum xt_rateest_match_flags {
+ /* WARNING: DO NOT EDIT, AUTO-GENERATED CODE - SEE TOP FOR INSTRUCTIONS */
+- char name[IFNAMSIZ];
+- __s8 interval;
+- __u8 ewma_log;
+- struct xt_rateest *est __attribute__((aligned(8)));
++ XT_RATEEST_MATCH_INVERT = 1<<0,
++ XT_RATEEST_MATCH_ABS = 1<<1,
++ XT_RATEEST_MATCH_REL = 1<<2,
++ XT_RATEEST_MATCH_DELTA = 1<<3,
++/* WARNING: DO NOT EDIT, AUTO-GENERATED CODE - SEE TOP FOR INSTRUCTIONS */
++ XT_RATEEST_MATCH_BPS = 1<<4,
++ XT_RATEEST_MATCH_PPS = 1<<5,
++};
++enum xt_rateest_match_mode {
++/* WARNING: DO NOT EDIT, AUTO-GENERATED CODE - SEE TOP FOR INSTRUCTIONS */
++ XT_RATEEST_MATCH_NONE,
++ XT_RATEEST_MATCH_EQ,
++ XT_RATEEST_MATCH_LT,
++ XT_RATEEST_MATCH_GT,
++/* WARNING: DO NOT EDIT, AUTO-GENERATED CODE - SEE TOP FOR INSTRUCTIONS */
++};
++struct xt_rateest_match_info {
++ char name1[IFNAMSIZ];
++ char name2[IFNAMSIZ];
++/* WARNING: DO NOT EDIT, AUTO-GENERATED CODE - SEE TOP FOR INSTRUCTIONS */
++ __u16 flags;
++ __u16 mode;
++ __u32 bps1;
++ __u32 pps1;
++/* WARNING: DO NOT EDIT, AUTO-GENERATED CODE - SEE TOP FOR INSTRUCTIONS */
++ __u32 bps2;
++ __u32 pps2;
++ struct xt_rateest *est1 __attribute__((aligned(8)));
++ struct xt_rateest *est2 __attribute__((aligned(8)));
+ /* WARNING: DO NOT EDIT, AUTO-GENERATED CODE - SEE TOP FOR INSTRUCTIONS */
+ };
+ #endif
+diff --git a/libc/kernel/uapi/linux/netfilter/xt_TCPMSS.h b/libc/kernel/uapi/linux/netfilter/xt_TCPMSS.h
+index 91c2737..d1bb707 100644
+--- a/libc/kernel/uapi/linux/netfilter/xt_TCPMSS.h
++++ b/libc/kernel/uapi/linux/netfilter/xt_TCPMSS.h
+@@ -16,13 +16,13 @@
+  ***
+  ****************************************************************************
+  ****************************************************************************/
+-#ifndef _XT_TCPMSS_H
+-#define _XT_TCPMSS_H
++#ifndef _XT_TCPMSS_MATCH_H
++#define _XT_TCPMSS_MATCH_H
+ #include <linux/types.h>
+-struct xt_tcpmss_info {
++struct xt_tcpmss_match_info {
+ /* WARNING: DO NOT EDIT, AUTO-GENERATED CODE - SEE TOP FOR INSTRUCTIONS */
+- __u16 mss;
++ __u16 mss_min, mss_max;
++ __u8 invert;
+ };
+-#define XT_TCPMSS_CLAMP_PMTU 0xffff
+ #endif
+ /* WARNING: DO NOT EDIT, AUTO-GENERATED CODE - SEE TOP FOR INSTRUCTIONS */
+diff --git a/libc/kernel/uapi/linux/netfilter_ipv4/ipt_ECN.h b/libc/kernel/uapi/linux/netfilter_ipv4/ipt_ECN.h
+index deff732..85bdd01 100644
+--- a/libc/kernel/uapi/linux/netfilter_ipv4/ipt_ECN.h
++++ b/libc/kernel/uapi/linux/netfilter_ipv4/ipt_ECN.h
+@@ -16,26 +16,18 @@
+  ***
+  ****************************************************************************
+  ****************************************************************************/
+-#ifndef _IPT_ECN_TARGET_H
+-#define _IPT_ECN_TARGET_H
+-#include <linux/types.h>
+-#include <linux/netfilter/xt_DSCP.h>
++#ifndef _IPT_ECN_H
++#define _IPT_ECN_H
++#include <linux/netfilter/xt_ecn.h>
++#define ipt_ecn_info xt_ecn_info
+ /* WARNING: DO NOT EDIT, AUTO-GENERATED CODE - SEE TOP FOR INSTRUCTIONS */
+-#define IPT_ECN_IP_MASK (~XT_DSCP_MASK)
+-#define IPT_ECN_OP_SET_IP 0x01
+-#define IPT_ECN_OP_SET_ECE 0x10
+-#define IPT_ECN_OP_SET_CWR 0x20
++enum {
++ IPT_ECN_IP_MASK = XT_ECN_IP_MASK,
++ IPT_ECN_OP_MATCH_IP = XT_ECN_OP_MATCH_IP,
++ IPT_ECN_OP_MATCH_ECE = XT_ECN_OP_MATCH_ECE,
+ /* WARNING: DO NOT EDIT, AUTO-GENERATED CODE - SEE TOP FOR INSTRUCTIONS */
+-#define IPT_ECN_OP_MASK 0xce
+-struct ipt_ECN_info {
+- __u8 operation;
+- __u8 ip_ect;
+-/* WARNING: DO NOT EDIT, AUTO-GENERATED CODE - SEE TOP FOR INSTRUCTIONS */
+- union {
+- struct {
+- __u8 ece:1, cwr:1;
+- } tcp;
+-/* WARNING: DO NOT EDIT, AUTO-GENERATED CODE - SEE TOP FOR INSTRUCTIONS */
+- } proto;
++ IPT_ECN_OP_MATCH_CWR = XT_ECN_OP_MATCH_CWR,
++ IPT_ECN_OP_MATCH_MASK = XT_ECN_OP_MATCH_MASK,
+ };
+ #endif
++/* WARNING: DO NOT EDIT, AUTO-GENERATED CODE - SEE TOP FOR INSTRUCTIONS */
+diff --git a/libc/kernel/uapi/linux/netfilter_ipv4/ipt_TTL.h b/libc/kernel/uapi/linux/netfilter_ipv4/ipt_TTL.h
+index ca2768b..c567d53 100644
+--- a/libc/kernel/uapi/linux/netfilter_ipv4/ipt_TTL.h
++++ b/libc/kernel/uapi/linux/netfilter_ipv4/ipt_TTL.h
+@@ -21,13 +21,13 @@
+ #include <linux/types.h>
+ enum {
+ /* WARNING: DO NOT EDIT, AUTO-GENERATED CODE - SEE TOP FOR INSTRUCTIONS */
+- IPT_TTL_SET = 0,
+- IPT_TTL_INC,
+- IPT_TTL_DEC
+-};
++ IPT_TTL_EQ = 0,
++ IPT_TTL_NE,
++ IPT_TTL_LT,
++ IPT_TTL_GT,
+ /* WARNING: DO NOT EDIT, AUTO-GENERATED CODE - SEE TOP FOR INSTRUCTIONS */
+-#define IPT_TTL_MAXMODE IPT_TTL_DEC
+-struct ipt_TTL_info {
++};
++struct ipt_ttl_info {
+  __u8 mode;
+  __u8 ttl;
+ /* WARNING: DO NOT EDIT, AUTO-GENERATED CODE - SEE TOP FOR INSTRUCTIONS */
+diff --git a/libc/kernel/uapi/linux/netfilter_ipv6/ip6t_HL.h b/libc/kernel/uapi/linux/netfilter_ipv6/ip6t_HL.h
+index 0eded06..3cff615 100644
+--- a/libc/kernel/uapi/linux/netfilter_ipv6/ip6t_HL.h
++++ b/libc/kernel/uapi/linux/netfilter_ipv6/ip6t_HL.h
+@@ -21,13 +21,13 @@
+ #include <linux/types.h>
+ enum {
+ /* WARNING: DO NOT EDIT, AUTO-GENERATED CODE - SEE TOP FOR INSTRUCTIONS */
+- IP6T_HL_SET = 0,
+- IP6T_HL_INC,
+- IP6T_HL_DEC
+-};
++ IP6T_HL_EQ = 0,
++ IP6T_HL_NE,
++ IP6T_HL_LT,
++ IP6T_HL_GT,
+ /* WARNING: DO NOT EDIT, AUTO-GENERATED CODE - SEE TOP FOR INSTRUCTIONS */
+-#define IP6T_HL_MAXMODE IP6T_HL_DEC
+-struct ip6t_HL_info {
++};
++struct ip6t_hl_info {
+  __u8 mode;
+  __u8 hop_limit;
+ /* WARNING: DO NOT EDIT, AUTO-GENERATED CODE - SEE TOP FOR INSTRUCTIONS */
+ 
